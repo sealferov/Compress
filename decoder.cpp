@@ -107,7 +107,7 @@ void decoder() {
 
 	fread(Name, sizeof(char), 256, f);
 	char tmp;
-	for (int i = 0; i < 256; i++) {
+	for (int i = 0; i < 256; i++) { //parcing table
 
 		fread(&(tmp), sizeof(char), 1, f);
 		Codes[i].Length = tmp;
@@ -136,7 +136,7 @@ void decoder() {
 	}
 
 	buf.Length = 0;
-	while (_read(&bit) != false)
+	while (_read(&bit) != false)//parcing code and decoding
 	{
 		Add(buf, bit);
 		for (int i = 0; i < 256; i++)
@@ -155,14 +155,14 @@ void decoder() {
 	fclose(f);
 }
 
-bool _read(bool *c)
+bool _read(bool *c) //partition bytes to bits 
 {
 
 	if (left_bit != 0)
 	{
 		if (bit_shift == 8)
 		{
-			fread(&bite, sizeof(char), 1, f);
+			fread(&bite, sizeof(char), 1, f);//if byte is over, we begin the new
 			bit_shift = 0;
 		}
 
