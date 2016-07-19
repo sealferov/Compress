@@ -32,136 +32,165 @@ int GetLengthInBytes(int BitCount) //âîçâðàùàåò êîëè÷åñòâî �
 	return (BitCount / 8) + ((BitCount % 8 != 0) ? 1 : 0);
 }
 
-void Clear(Code &a)
+Node* Move(Node *node, bool b, bool &result) // result: true = not found and created; false = everything's fine;
 {
-	int tmp = GetLengthInBytes(a.Length);
-	for (int i = 0; i < tmp; i++)
-	{
-		a.CodeItself[i] = 0;
-	}
-	a.Length = 0;
-}
-void Add(Code &code, bool b)
-{
-	char mask = 0x80;
-	int sdvig = 8 - (code.Length % 8);
-	if (sdvig == 8) sdvig = 0;
-	mask >>= sdvig;
+	bool res = false;
+	Node *ret;
 	if (b)
 	{
-		code.CodeItself[code.Length / 8] |= mask;
+		if (res = (node->one == NULL))
+		{
+			node->one = new Node;
+		}
+		ret = node->one;
 	}
 	else
 	{
-		code.CodeItself[code.Length / 8] &= ~mask;
-	}
-	code.Length++;
-}
-bool _Equal(Code a, Code b)
-{
-	if (a.Length != b.Length) return false; else
-	{
-		int tmp = GetLengthInBytes(a.Length);
-		for (int i = 0; i < tmp; i++)
+		if (res = (node->zero == NULL))
 		{
-			if (a.CodeItself[i] != b.CodeItself[i]) return false;
+			node->zero = new Node;
 		}
-		return true;
+		ret = node->zero;
 	}
+	result = res;
+	return ret;
 }
 
-
-
-
-
-void decoder();
-bool _read(bool *c);
-
-void main()
+void Create(Code code, Node *node, char index)
 {
-	decoder();
+	Node *temp = node;
+	if (code.Length == 0) return;
+	bool usless;
+	bool not_fin = true;
+	bool go_there;
+	for (int i = 0; not_fin; i++)
+	{
+		for (int j = 0; j < 8; j++)
+		{
+			if (i * 8 + j == code.Length)
+			{
+				not_fin = false;
+				break;
+			}
+			go_there = (code.CodeItself[i] << j) & 0x80;
+			temp = Move(temp, go_there, usless);
+		}
+	}
+	temp->last = true;
+	temp->encodedByte = index;
 }
 
-
-
-void decoder() {
-
+void decoder(FILE *Name, char* Address, int checkpassword)
+{
 	Code Codes[256];
 	int length_of_table = 256;
-
-	char  Name[256];
-	int size = filesize(f);
+	int length_of_name;
+	int size = filesize(Name);
 	char last_b;
-	fread(&last_b, sizeof(char), 1, f);
-
-	for (int i = 0; i < size; i++) {
-		fread(&last_b, sizeof(char), 1, f);
-
-
+	fread(&last_b, sizeof(char), 1, Name);
+	if (checkpassword != last_b)
+	{
+		printf("File with password");
+		return;
+	}
+	for (int i = 0; i < size; i++)
+	{
+		fread(&last_b, sizeof(char), 1, Name);
 	}
 	int last_a = (int)last_b;
+	rewind(Name);
+	fread(&last_b, sizeof(char), 1, Name);
+	last_b = NULL;
+	unsigned int checksum;
+	fread(&checksum, 1, 4, Name);
+	fread(&length_of_name, 1, 4, Name);
+	length_of_name++;
+	char *_Name = (char*)calloc(length_of_name, 1);
+	fread(_Name, 1, length_of_name - 1, Name);
+	char* Addres = (char*)malloc(strlen(Address) + 1);
+	strcpy(Addres, Address);
+	char* name = givethisname(Addres, _Name);
+	free(Addres);
+	if (name == NULL)
+	{
+		printf("Not enough memory");
+		return;
+	}
+	FILE *f_2 = fopen(name, "wb");
 
-
-
-	rewind(f);
-
-	fread(Name, sizeof(char), 256, f);
 	char tmp;
 	for (int i = 0; i < 256; i++) { //parcing table
 
-		fread(&(tmp), sizeof(char), 1, f);
+		fread(&(tmp), sizeof(char), 1, Name);
 		Codes[i].Length = tmp;
 		int length_of_bite = GetLengthInBytes(Codes[i].Length);
-		fread(&(Codes[i].CodeItself), sizeof(char), length_of_bite, f);
+		fread(&(Codes[i].CodeItself), sizeof(char), length_of_bite, Name);
 		length_of_table = length_of_table + length_of_bite;
 	}
 
-
-	int length_of_code = size - sizeof(Name) - length_of_table;
-
-
+	length_of_code = size - 3 - length_of_name - length_of_table;
+	length_of_code -= 5;
 	left_bit = (length_of_code - 1) * 8 - last_a;
-
+	//	left_bit--;
 	bool bit;
 
+	Node root, temp;
+	root.last = false;
 
-
-	FILE *f_2 = fopen("D://Test2.txt", "wb");
-
-	Code buf;
-	for (int i = 0; i < 32; i++)
+	for (int i = 0; i < 256; i++)
 	{
-		buf.CodeItself[i] = 0;
-
+		Create(Codes[i], &root, i);
 	}
 
-	buf.Length = 0;
-	while (_read(&bit) != false)//parcing code and decoding
+	f = Name;
+	temp = root;
+	bool err;
+	byte_count = length_of_code / 100 * 5;
+	while (_read(&bit) != false)
 	{
-		Add(buf, bit);
-		for (int i = 0; i < 256; i++)
+		temp = *Move(&temp, bit, err);
+		if (err)
 		{
-			if (_Equal(buf, Codes[i]))
-			{
-				Clear(buf);
-				char temp = i;
-				fwrite(&temp, sizeof(char), 1, f_2);
-				break;
-			}
+			//GENERAL ERROR! NOT FOUND BYTE COMBINATION! AAAAAAAAAAAAA!
+			std::cout << "crap!";
+			return;
 		}
-
+		if (temp.last)
+		{
+			fwrite(&(temp.encodedByte), 1, 1, f_2);
+			temp = root;
+		}
 	}
 
-	fclose(f);
+	fclose(f_2);
+	f_2 = fopen(name, "rb");
+
+	unsigned int checksum2 = checkSummBuilder(f_2);
+	if (checksum != checksum2)
+	{
+		printf("File was corrupted");
+		fclose(f_2);
+		free(name);
+		return;
+	}
+
+	fclose(f_2);
+	free(name);
 }
 
-bool _read(bool *c) //partition bytes to bits 
+bool _read(bool *c) //partition bytes to bits
 {
 
 	if (left_bit != 0)
 	{
 		if (bit_shift == 8)
 		{
+			byte_count++;
+			byte_in_progress = progress_bar(byte_count, length_of_code);
+			if (((int)byte_in_progress != (int)prev) && ((int)byte_in_progress % 5 == 0)) {
+				printf("%d%%\n", (int)byte_in_progress);
+			}
+			prev = byte_in_progress;
 			fread(&bite, sizeof(char), 1, f);//if byte is over, we begin the new
 			bit_shift = 0;
 		}
@@ -176,4 +205,3 @@ bool _read(bool *c) //partition bytes to bits
 		return false;
 
 }
-
